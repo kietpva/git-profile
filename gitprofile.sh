@@ -68,13 +68,33 @@ function add_profile() {
   read "email?Git email: "
   [[ -z "$email" ]] && echo "❌ Cancelled." && return
 
-  read "ssh_key?Path to SSH key (e.g. ~/.ssh/id_rsa): "
-  [[ -z "$ssh_key" ]] && echo "❌ Cancelled." && return
+  echo "🔍 Available SSH keys in ~/.ssh:"
+  ssh_keys=($(find ~/.ssh -type f -name "id_*" ! -name "*.pub"))
+
+  if [[ ${#ssh_keys[@]} -eq 0 ]]; then
+    echo "❌ No SSH keys found in ~/.ssh"
+    return 1
+  fi
+
+  for i in "${!ssh_keys[@]}"; do
+    key="${ssh_keys[$i]}"
+    echo "  [$((i+1))] ${key/#$HOME/~}"
+  done
+
+  while true; do
+    read "ssh_choice?Choose SSH key (1-${#ssh_keys[@]}): "
+    if [[ "$ssh_choice" =~ ^[0-9]+$ ]] && (( ssh_choice >= 1 && ssh_choice <= ${#ssh_keys[@]} )); then
+      ssh_key="${ssh_keys[$((ssh_choice-1))]}"
+      break
+    else
+      echo "⚠️ Invalid choice. Please enter a number from 1 to ${#ssh_keys[@]}"
+    fi
+  done
 
   read "hostname?SSH host (e.g. gitlab.com): "
   [[ -z "$hostname" ]] && echo "❌ Cancelled." && return
 
-  echo "$profile_name=$full_name|$email|$ssh_key|$hostname" >> "$CONFIG_FILE"
+  echo "$profile_name=$full_name|$email|${ssh_key/#$HOME/~}|$hostname" >> "$CONFIG_FILE"
   echo "✅ Profile '$profile_name' added!"
 }
 
