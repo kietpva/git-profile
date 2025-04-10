@@ -7,8 +7,11 @@ VERSION="1.0.1"
 function init_config() {
   if [[ ! -f "$CONFIG_FILE" ]]; then
     cat <<EOF > "$CONFIG_FILE"
-# Git Profile Config
-# Format: profile_name=Full Name|email@example.com|~/.ssh/id_rsa|gitlab.com
+# Git Profiles
+# Format:
+#   profile_name=Git User Name|email@example.com|/path/to/ssh_key|git.example.com
+# Example:
+#   work=Kiet Pham|kietpva0102@gmail.com|~/.ssh/kietpham|github.com
 EOF
     echo "🆕 Created config file: $CONFIG_FILE"
   fi
@@ -16,7 +19,7 @@ EOF
 
 function show_help() {
   cat <<EOF
-📘 gitprofile – Manage multiple Git user profiles with ease
+📘 Kiet Pham - gitprofile - Manage multiple Git user profiles with ease
 
 Usage:
   gitprofile <command> [profile_name]
@@ -26,15 +29,15 @@ Commands:
   remove                Remove a Git profile
   list, --list, -l      List all saved profiles
   version               Show script version
-  help, --help          Show this help message
-  <profile_name>        Switch to the given profile
+  help, --help, -h      Show this help message
+  <profile_name>         Switch to the given profile
 
 Examples:
-  gitprofile list
+  gitprofile list, --list, -l
   gitprofile add
   gitprofile remove
   gitprofile work
-  gitprofile --help
+  gitprofile help, --help, -h
 EOF
 }
 
@@ -150,7 +153,7 @@ function main() {
     add) add_profile ;;
     remove) remove_profile "$2" ;;
     version) echo "gitprofile v$VERSION" ;;
-    help | --help) show_help ;;
+    help | --help| -h) show_help ;;
     *) switch_profile "$command" ;;
   esac
 }
