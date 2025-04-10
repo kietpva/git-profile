@@ -1,5 +1,5 @@
 #!/bin/zsh
-# gitprofile.sh - Script to switch git profile
+# Kiet Pham - gitprofile.sh - Script to switch git profile
 
 CONFIG_FILE="$HOME/.gitprofiles.conf"
 VERSION="1.0.1"
@@ -13,13 +13,13 @@ function init_config() {
 # Example:
 #   work=Kiet Pham|kietpva0102@gmail.com|~/.ssh/kietpham|github.com
 EOF
-    echo "🆕 Created config file: $CONFIG_FILE"
+    echo "✅ Config file created at: $CONFIG_FILE"
   fi
 }
 
 function show_help() {
   cat <<EOF
-📘 Kiet Pham - gitprofile - Manage multiple Git user profiles with ease
+📘 Kiet Pham - gitprofile – Manage multiple Git user profiles with ease
 
 Usage:
   gitprofile <command> [profile_name]
@@ -27,17 +27,17 @@ Usage:
 Commands:
   add                   Add a new Git profile
   remove                Remove a Git profile
-  list, --list, -l      List all saved profiles
   version               Show script version
-  help, --help, -h      Show this help message
-  <profile_name>         Switch to the given profile
+  list, --list, -l      List all saved profiles
+  help, --help          Show this help message
+  <profile_name>        Switch to the given profile
 
 Examples:
-  gitprofile list, --list, -l
+  gitprofile example (switch to 'example' profile)
+  gitprofile list
   gitprofile add
   gitprofile remove
-  gitprofile work
-  gitprofile help, --help, -h
+  gitprofile --help
 EOF
 }
 
@@ -52,61 +52,102 @@ function add_profile() {
   echo "➕ Adding a new profile (leave blank to cancel)"
 
   while true; do
-    read "profile_name?Profile name: "
-    [[ -z "$profile_name" ]] && echo "❌ Cancelled." && return
+    read -r "profile?🔖 Profile name (e.g. work, personal): "
+    [[ -z "$profile" ]] && echo "❌ Cancelled." && return
 
-    if grep -q "^$profile_name=" "$CONFIG_FILE"; then
-      echo "⚠️ Profile '$profile_name' already exists. Please choose another name."
-    else
-      break
+    if grep -q "^$profile=" "$CONFIG_FILE"; then
+      echo "⚠️ Profile '$profile' already exists. Please choose another name."
+      continue
     fi
-  done
 
-  read "full_name?Git user name: "
-  [[ -z "$full_name" ]] && echo "❌ Cancelled." && return
+    read -r "name?👤 user.name: "
+    [[ -z "$name" ]] && echo "❌ Cancelled." && return
 
-  read "email?Git email: "
-  [[ -z "$email" ]] && echo "❌ Cancelled." && return
+    read -r "email?📧 user.email: "
 
-  echo "🔍 Available SSH keys in ~/.ssh:"
-  ssh_keys=($(find ~/.ssh -type f -name "id_*" ! -name "*.pub"))
+    # List SSH keys
+    echo "🔍 Available SSH keys in ~/.ssh:"
+    keys=()
+    for f in ~/.ssh/*(N); do
+      [[ -f "$f" ]] || continue
+      fname=${f:t}
+      [[ "$fname" == "config" || "$fname" == "known_hosts" || "$fname" == "known_hosts.old" || "$fname" == *.pub ]] && continue
+      keys+=("$fname")
+    done
 
-  if [[ ${#ssh_keys[@]} -eq 0 ]]; then
-    echo "❌ No SSH keys found in ~/.ssh"
-    return 1
-  fi
-
-  for i in "${!ssh_keys[@]}"; do
-    key="${ssh_keys[$i]}"
-    echo "  [$((i+1))] ${key/#$HOME/~}"
-  done
-
-  while true; do
-    read "ssh_choice?Choose SSH key (1-${#ssh_keys[@]}): "
-    if [[ "$ssh_choice" =~ ^[0-9]+$ ]] && (( ssh_choice >= 1 && ssh_choice <= ${#ssh_keys[@]} )); then
-      ssh_key="${ssh_keys[$((ssh_choice-1))]}"
-      break
-    else
-      echo "⚠️ Invalid choice. Please enter a number from 1 to ${#ssh_keys[@]}"
+    if (( ${#keys[@]} == 0 )); then
+      echo "❌ No SSH keys found in ~/.ssh"
+      return
     fi
+
+    for i in {1..${#keys[@]}}; do
+      echo "$i) ${keys[$i]}"
+    done
+
+    read -r "key_choice?Enter a number to select an SSH key: "
+    ssh_key="${keys[$key_choice]}"
+    [[ -z "$ssh_key" ]] && echo "❌ Invalid selection." && return
+    ssh_key_path="$HOME/.ssh/$ssh_key"
+    echo "✅ sshkey '$ssh_key' added."
+
+    # Choose host
+    while true; do
+      echo "🌐 Select Git host:"
+      echo "1) github.com"
+      echo "2) gitlab.com"
+      echo "3) bitbucket.org"
+      echo "4) Other (enter manually)"
+      read -r "host_choice?Enter a number: "
+
+      case "$host_choice" in
+        1) host="github.com"; break ;;
+        2) host="gitlab.com"; break ;;
+        3) host="bitbucket.org"; break ;;
+        4)
+          read -r "host?Enter custom hostname: "
+          [[ -z "$host" ]] && echo "❌ Hostname cannot be empty." || break
+          ;;
+        *) echo "❌ Please try again." ;;
+      esac
+    done
+
+    echo "$profile=$name|$email|$ssh_key_path|$host" >> "$CONFIG_FILE"
+    echo "✅ Profile '$profile' added."
+    break
   done
-
-  read "hostname?SSH host (e.g. gitlab.com): "
-  [[ -z "$hostname" ]] && echo "❌ Cancelled." && return
-
-  echo "$profile_name=$full_name|$email|${ssh_key/#$HOME/~}|$hostname" >> "$CONFIG_FILE"
-  echo "✅ Profile '$profile_name' added!"
 }
 
 function remove_profile() {
-  profile=$1
-  [[ -z "$profile" ]] && echo "⚠️ Please specify a profile to remove." && return
+  echo "🗑️ Select a profile to remove:"
 
-  if grep -q "^$profile=" "$CONFIG_FILE"; then
-    sed -i '' "/^$profile=/d" "$CONFIG_FILE"
-    echo "🗑️ Removed profile '$profile'"
+  profiles=()
+  grep -v '^#' "$CONFIG_FILE" | while IFS='=' read -r profile _; do
+    profiles+=("$profile")
+  done
+
+  if (( ${#profiles[@]} == 0 )); then
+    echo "❌ No profiles to remove."
+    return
+  fi
+
+  for i in {1..${#profiles[@]}}; do
+    echo "$i) ${profiles[$i]}"
+  done
+
+  read -r "choice?Enter a number to select a profile: "
+  selected_profile="${profiles[$choice]}"
+
+  if [[ -z "$selected_profile" ]]; then
+    echo "❌ Invalid selection."
+    return
+  fi
+
+  read -r "confirm?❓ Are you sure you want to delete '$selected_profile'? (y/n): "
+  if [[ "$confirm" =~ ^[Yy]$ ]]; then
+    sed -i '' "/^$selected_profile=/d" "$CONFIG_FILE"
+    echo "✅ Removed profile '$selected_profile'"
   else
-    echo "❌ Profile '$profile' not found."
+    echo "❌ Cancelled."
   fi
 }
 
@@ -135,13 +176,10 @@ function switch_profile() {
   fi
 
   echo "🔁 Switching to profile '$profile'"
-  echo "👤 Name: $name"
-  echo "📧 Email: $email"
+  echo "👤 user.nam: $name"
+  echo "📧 user.email: $email"
   echo "🔐 SSH Key: $ssh_key"
   echo "🌐 Host: $hostname"
-
-  # Make sure git config file exists
-  [[ ! -f "$HOME/.gitconfig" ]] && touch "$HOME/.gitconfig"
 
   git config --global user.name "$name"
   git config --global user.email "$email"
@@ -149,18 +187,23 @@ function switch_profile() {
 
   config_file="${ssh_key%/*}/config"
 
-  if [[ ! -f "$config_file" ]]; then
-    cat <<EOF > "$config_file"
+cat <<EOF > "$config_file"
 Host $hostname
   HostName $hostname
   User git
   IdentityFile $ssh_key
 EOF
-    echo "🆕 Created SSH config at: $config_file"
-  elif [[ -n "$hostname" ]]; then
-    sed -i '' "s|^ *IdentityFile .*|  IdentityFile $ssh_key|" "$config_file"
-    sed -i '' "s|^ *Host .*|  Host $hostname|" "$config_file"
-    sed -i '' "s|^ *HostName .*|  HostName $hostname|" "$config_file"
+
+  if [[ -f "$config_file" ]]; then
+    echo "🔁 SSH config replaced at $config_file"
+  else
+    echo "📄 Created SSH config at $config_file"
+  fi
+
+  if [[ -n "$hostname" ]]; then
+    sed -i '' "s|^ *IdentityFile .*|  IdentityFile $ssh_key|" "$config_file" 2>/dev/null || echo "  IdentityFile $ssh_key" >> "$config_file"
+    sed -i '' "s|^ *Host .*|  Host $hostname|" "$config_file" 2>/dev/null || echo "  Host $hostname" >> "$config_file"
+    sed -i '' "s|^ *HostName .*|  HostName $hostname|" "$config_file" 2>/dev/null || echo "  HostName $hostname" >> "$config_file"
     echo "🛠️ SSH config updated: $config_file"
   fi
 
@@ -172,18 +215,19 @@ EOF
   fi
 }
 
-function main() {
-  init_config
-  command=$1
-
-  case "$command" in
-    "" | --list | -l | list) list_profiles ;;
-    add) add_profile ;;
-    remove) remove_profile "$2" ;;
-    version) echo "gitprofile v$VERSION" ;;
-    help | --help| -h) show_help ;;
-    *) switch_profile "$command" ;;
-  esac
+function show_version() {
+  echo "🔖 gitprofile version $VERSION"
 }
 
-main "$@"
+### Main Logic
+init_config
+
+case "$1" in
+  add|-a) add_profile ;;
+  remove|-rm) remove_profile ;;
+  version|-v) show_version ;;
+  list|--list|-l) list_profiles ;;
+  help|--help|-h) show_help ;;
+  "") show_help ;;
+  *) switch_profile "$1" ;;
+esac
