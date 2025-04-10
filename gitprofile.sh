@@ -51,8 +51,16 @@ function list_profiles() {
 function add_profile() {
   echo "➕ Adding a new profile (leave blank to cancel)"
 
-  read "profile_name?Profile name: "
-  [[ -z "$profile_name" ]] && echo "❌ Cancelled." && return
+  while true; do
+    read "profile_name?Profile name: "
+    [[ -z "$profile_name" ]] && echo "❌ Cancelled." && return
+
+    if grep -q "^$profile_name=" "$CONFIG_FILE"; then
+      echo "⚠️ Profile '$profile_name' already exists. Please choose another name."
+    else
+      break
+    fi
+  done
 
   read "full_name?Git user name: "
   [[ -z "$full_name" ]] && echo "❌ Cancelled." && return
