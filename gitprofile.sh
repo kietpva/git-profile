@@ -1,12 +1,21 @@
 #!/bin/zsh
 # gitprofile.sh - Script to switch git profile
 
+#!/bin/bash
+
 CONFIG_FILE="$HOME/.gitprofiles.conf"
 VERSION="1.0.1"
+
 function init_config() {
   if [[ ! -f "$CONFIG_FILE" ]]; then
-    touch "$CONFIG_FILE"
-    echo "# Git Profiles" > "$CONFIG_FILE"
+    cat <<EOF > "$CONFIG_FILE"
+# Git Profiles
+# Format:
+#   profile_name=Git User Name|email@example.com|/path/to/ssh_key|git.example.com
+# Example:
+#   work=Kiet Pham|kietpva0102@gmail.com|~/.ssh/kietpham|github.com
+EOF
+  echo "📁 Created config file at: $CONFIG_FILE"
   fi
 }
 
@@ -94,13 +103,38 @@ function show_version() {
   echo "gitprofile v$VERSION"
 }
 
+function show_help() {
+  cat <<EOF
+📘 KietPham - gitprofile - Manage multiple Git user profiles with ease
+
+Usage:
+  gitprofile <command> [profile_name]
+
+Commands:
+  add                   Add a new Git profile
+  remove                Remove a Git profile
+  version               Show script version
+  list, --list, -l      List all saved profiles
+  help, --help          Show this help message
+  <profile_name>         Switch to the given profile
+
+Examples:
+  gitprofile list
+  gitprofile add
+  gitprofile remove
+  gitprofile work
+  gitprofile --help
+EOF
+}
+
 # Main
 init_config
 
 case "$1" in
-  list) list_profiles ;;
   add) add_profile ;;
-  remove) remove_profile ;;
-  version) show_version ;;
+  remove|rm) remove_profile ;;
+  version|-v) show_version ;;
+  list|--list|-l) list_profiles ;;
+  help|--help|-h) show_help ;;
   *) switch_profile "$1" ;;
 esac
