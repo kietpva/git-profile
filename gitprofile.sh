@@ -2,44 +2,61 @@
 # gitprofile.sh - Script to switch git profile
 
 CONFIG_FILE="$HOME/.gitprofiles.conf"
-function ensure_config_exists() {
+VERSION="1.0.1"
+function init_config() {
   if [[ ! -f "$CONFIG_FILE" ]]; then
     touch "$CONFIG_FILE"
-    echo "# Git profiles config" > "$CONFIG_FILE"
-    echo "⚙️ Created $CONFIG_FILE"
+    echo "# Git Profiles" > "$CONFIG_FILE"
   fi
-}
-
-function load_profiles() {
-  ensure_config_exists
-  GIT_PROFILES=()
-  while IFS='=' read -r key value; do
-    [[ "$key" =~ ^#.*$ || -z "$key" ]] && continue
-    GIT_PROFILES["$key"]="$value"
-  done < "$CONFIG_FILE"
 }
 
 function list_profiles() {
-  load_profiles
   echo "📋 Available profiles:"
-  for key in "${!GIT_PROFILES[@]}"; do
-    IFS='|' read -r name email ssh host <<< "${GIT_PROFILES[$key]}"
-    echo "  🔹 $key => $name <$email> | SSH: $ssh | Host: $host"
-  done
+  grep -v '^#' "$CONFIG_FILE" | cut -d'=' -f1
+}
+
+function add_profile() {
+  echo "➕ Adding a new profile (leave blank to cancel):"
+
+  echo -n "Profile name: "; read profile
+  [[ -z "$profile" ]] && echo "❌ Cancelled." && return
+
+  echo -n "Display name (Git user.name): "; read name
+  echo -n "Email (Git user.email): "; read email
+  echo -n "SSH key path: "; read ssh_key
+  echo -n "Host (e.g. gitlab.com): "; read hostname
+
+  echo "${profile}=${name}|${email}|${ssh_key}|${hostname}" >> "$CONFIG_FILE"
+  echo "✅ Profile '$profile' added."
+}
+
+function remove_profile() {
+  echo -n "Enter the profile name to remove: "; read profile
+  if grep -q "^$profile=" "$CONFIG_FILE"; then
+    sed -i.bak "/^$profile=/d" "$CONFIG_FILE"
+    echo "🗑️ Profile '$profile' removed."
+  else
+    echo "⚠️ Profile '$profile' not found."
+  fi
 }
 
 function switch_profile() {
-  load_profiles
-  local key="$1"
-  local profile="${GIT_PROFILES[$key]}"
-
+  profile=$1
   if [[ -z "$profile" ]]; then
-    echo "❌ Profile '$key' not found."
+    echo "⚠️ Please specify a profile name."
     list_profiles
-    return 1
+    return
   fi
 
-  IFS='|' read -r name email ssh_key_raw host <<< "$profile"
+  line=$(grep "^$profile=" "$CONFIG_FILE")
+  if [[ -z "$line" ]]; then
+    echo "❌ Profile '$profile' not found."
+    list_profiles
+    return
+  fi
+
+  IFS='=' read -r _ data <<< "$line"
+  IFS='|' read -r name email ssh_key_raw hostname <<< "$data"
   ssh_key="${ssh_key_raw/#\~/$HOME}"
 
   if [[ ! -f "$ssh_key" ]]; then
@@ -47,93 +64,43 @@ function switch_profile() {
     return 1
   fi
 
-  echo "🔁 Switching to profile '$key'"
-  echo "👤 $name <$email>"
-  echo "🔐 SSH: $ssh_key"
-  echo "🌐 Host: $host"
+  echo "🔁 Switching to profile '$profile'"
+  echo "👤 Name: $name"
+  echo "📧 Email: $email"
+  echo "🔐 SSH Key: $ssh_key"
+  echo "🌐 Host: $hostname"
 
   git config --global user.name "$name"
   git config --global user.email "$email"
   ssh-add "$ssh_key"
 
-  local config_file="${ssh_key%/*}/config"
-  if [[ -f "$config_file" ]]; then
+  config_file="${ssh_key%/*}/config"
+  if [[ -f "$config_file" && -n "$hostname" ]]; then
     sed -i '' "s|^ *IdentityFile .*|  IdentityFile $ssh_key|" "$config_file"
-    sed -i '' "s|^ *Host .*|  Host $host|" "$config_file"
-    sed -i '' "s|^ *HostName .*|  HostName $host|" "$config_file"
-    echo "🛠️ Updated $config_file"
-  else
-    echo "⚠️ SSH config file not found at $config_file"
+    sed -i '' "s|^ *Host .*|  Host $hostname|" "$config_file"
+    sed -i '' "s|^ *HostName .*|  HostName $hostname|" "$config_file"
+    echo "🛠️ SSH config updated: $config_file"
   fi
 
-  if [[ -n "$host" ]]; then
-    echo "🚀 Testing SSH connection to $host..."
-    ssh -T "$host"
-  fi
-}
-
-function add_profile() {
-  ensure_config_exists
-  echo "➕ Adding a new profile (leave blank to cancel)"
-
-  read -p "🔑 Profile name (e.g., work): " key
-  [[ -z "$key" ]] && echo "❌ Cancelled." && return
-
-  read -p "👤 Name: " name
-  [[ -z "$name" ]] && echo "❌ Cancelled." && return
-
-  read -p "📧 Email: " email
-  [[ -z "$email" ]] && echo "❌ Cancelled." && return
-
-  read -p "🔐 SSH key path (e.g., ~/.ssh/id_rsa): " ssh_key
-  [[ -z "$ssh_key" ]] && echo "❌ Cancelled." && return
-
-  read -p "🌐 Host (e.g., github.com): " host
-  [[ -z "$host" ]] && echo "❌ Cancelled." && return
-
-  echo "$key=$name|$email|$ssh_key|$host" >> "$CONFIG_FILE"
-  echo "✅ Added profile '$key'"
-}
-
-function remove_profile() {
-  ensure_config_exists
-  local key="$1"
-  if grep -q "^$key=" "$CONFIG_FILE"; then
-    grep -v "^$key=" "$CONFIG_FILE" > "$CONFIG_FILE.tmp" && mv "$CONFIG_FILE.tmp" "$CONFIG_FILE"
-    echo "🗑️ Removed profile '$key'"
+  if [[ -n "$hostname" ]]; then
+    echo "🚀 Testing SSH connection to $hostname..."
+    ssh -T "$hostname"
   else
-    echo "❌ Profile '$key' not found."
+    echo "⚠️ No hostname provided to test SSH connection."
   fi
 }
 
 function show_version() {
-  echo "gitprofile v1.0.1"
+  echo "gitprofile v$VERSION"
 }
 
-# Main handler
+# Main
+init_config
+
 case "$1" in
-  list)
-    list_profiles
-    ;;
-  add)
-    add_profile
-    ;;
-  remove)
-    remove_profile "$2"
-    ;;
-  version)
-    show_version
-    ;;
-  *)
-    if [[ -n "$1" ]]; then
-      switch_profile "$1"
-    else
-      echo "⚙️ Usage:"
-      echo "  gitprofile list          # Show all profiles"
-      echo "  gitprofile add           # Add new profile"
-      echo "  gitprofile remove <key>  # Remove profile"
-      echo "  gitprofile <key>         # Switch to profile"
-      echo "  gitprofile version       # Show version"
-    fi
-    ;;
+  list) list_profiles ;;
+  add) add_profile ;;
+  remove) remove_profile ;;
+  version) show_version ;;
+  *) switch_profile "$1" ;;
 esac
