@@ -17,34 +17,23 @@ EOF
   fi
 }
 
-function show_help() {
-  cat <<EOF
-📘 Kiet Pham - gitprofile – Manage multiple Git user profiles with ease
-
-Usage:
-  gitprofile <command> [profile_name]
-
-Commands:
-  add                   Add a new Git profile
-  remove                Remove a Git profile
-  version               Show script version
-  list, --list, -l      List all saved profiles
-  help, --help          Show this help message
-  <profile_name>        Switch to the given profile
-
-Examples:
-  gitprofile example (switch to 'example' profile)
-  gitprofile list
-  gitprofile add
-  gitprofile remove
-  gitprofile --help
-EOF
-}
-
 function list_profiles() {
+  if [[ ! -f "$CONFIG_FILE" ]]; then
+    echo "⚠️ No config file found."
+    return
+  fi
+
+  current_name=$(git config --global user.name)
+  current_email=$(git config --global user.email)
+
   echo "📋 Available profiles:"
-  grep -v '^#' "$CONFIG_FILE" | while IFS='=' read -r key value; do
-    [[ -n "$key" ]] && echo "  - $key"
+  grep -v '^#' "$CONFIG_FILE" | while IFS='=' read -r profile data; do
+    IFS='|' read -r name email _ <<< "$data"
+    if [[ "$name" == "$current_name" && "$email" == "$current_email" ]]; then
+      echo "  \033[1;32m* $profile (active)\033[0m"
+    else
+      echo "  - $profile"
+    fi
   done
 }
 
@@ -217,6 +206,30 @@ EOF
 
 function show_version() {
   echo "🔖 gitprofile version $VERSION"
+}
+
+function show_help() {
+  cat <<EOF
+📘 Kiet Pham - gitprofile - Manage multiple Git user profiles with ease
+
+Usage:
+  gitprofile <command> [profile_name]
+
+Commands:
+  add, -a                   Add a new Git profile
+  remove, -rm                Remove a Git profile
+  version, -v               Show script version
+  list, --list, -l      List all saved profiles
+  help, --help          Show this help message
+  <profile_name>        Switch to the given profile
+
+Examples:
+  gitprofile example (switch to 'example' profile)
+  gitprofile list
+  gitprofile add
+  gitprofile remove
+  gitprofile --help
+EOF
 }
 
 ### Main Logic
