@@ -17,34 +17,21 @@ EOF
   fi
 }
 
-function show_help() {
-  cat <<EOF
-📘 Kiet Pham - gitprofile – Manage multiple Git user profiles with ease
-
-Usage:
-  gitprofile <command> [profile_name]
-
-Commands:
-  add                   Add a new Git profile
-  remove                Remove a Git profile
-  version               Show script version
-  list, --list, -l      List all saved profiles
-  help, --help          Show this help message
-  <profile_name>        Switch to the given profile
-
-Examples:
-  gitprofile example (switch to 'example' profile)
-  gitprofile list
-  gitprofile add
-  gitprofile remove
-  gitprofile --help
-EOF
-}
-
 function list_profiles() {
+  if [[ ! -f "$CONFIG_FILE" ]]; then
+    echo "⚠️ No config file found."
+    return
+  fi
+
+  profile_active=$(grep "^profile_active=" "$CONFIG_FILE" | cut -d '=' -f2)
+
   echo "📋 Available profiles:"
-  grep -v '^#' "$CONFIG_FILE" | while IFS='=' read -r key value; do
-    [[ -n "$key" ]] && echo "  - $key"
+  grep -v '^#' "$CONFIG_FILE" | grep -v '^profile_active=' | while IFS='=' read -r profile data; do
+    if [[ "$profile" == "$profile_active" ]]; then
+      echo -e "  \033[1;32m* $profile (active)\033[0m"
+    else
+      echo "  - $profile"
+    fi
   done
 }
 
@@ -176,15 +163,17 @@ function switch_profile() {
   fi
 
   echo "🔁 Switching to profile '$profile'"
-  echo "👤 user.nam: $name"
+  echo "👤 user.name: $name"
   echo "📧 user.email: $email"
   echo "🔐 SSH Key: $ssh_key"
   echo "🌐 Host: $hostname"
 
+  # update git config
   git config --global user.name "$name"
   git config --global user.email "$email"
   ssh-add "$ssh_key"
 
+  # Update SSH config
   config_file="${ssh_key%/*}/config"
 
 cat <<EOF > "$config_file"
@@ -213,10 +202,42 @@ EOF
   else
     echo "⚠️ No hostname provided to test SSH connection."
   fi
+
+  # update profile_active in file config
+  # remove profile_active if exists
+  sed -i '' "/^profile_active=/d" "$CONFIG_FILE"
+
+  # append profile_active to file
+  echo "profile_active=$profile" >> "$CONFIG_FILE"
+  echo "✅ Set profile '$profile' as active in $CONFIG_FILE"
 }
 
 function show_version() {
   echo "🔖 gitprofile version $VERSION"
+}
+
+function show_help() {
+  cat <<EOF
+📘 Kiet Pham - gitprofile - Manage multiple Git user profiles with ease
+
+Usage:
+  gitprofile <command> [profile_name]
+
+Commands:
+  add, -a                   Add a new Git profile
+  remove, -rm                Remove a Git profile
+  version, -v               Show script version
+  list, --list, -l      List all saved profiles
+  help, --help          Show this help message
+  <profile_name>        Switch to the given profile
+
+Examples:
+  gitprofile example (switch to 'example' profile)
+  gitprofile list
+  gitprofile add
+  gitprofile remove
+  gitprofile --help
+EOF
 }
 
 ### Main Logic
