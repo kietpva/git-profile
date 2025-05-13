@@ -108,9 +108,9 @@ function remove_profile() {
   echo "🗑️ Select a profile to remove:"
 
   profiles=()
-  grep -v '^#' "$CONFIG_FILE" | while IFS='=' read -r profile _; do
+  while IFS='=' read -r profile _; do
     profiles+=("$profile")
-  done
+  done < <(grep -v '^#' "$CONFIG_FILE" | grep -v '^profile_active=')
 
   if (( ${#profiles[@]} == 0 )); then
     echo "❌ No profiles to remove."
